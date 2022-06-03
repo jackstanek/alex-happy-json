@@ -2,23 +2,23 @@
 
 module Parser (parse, JsonExpr) where
 
-import qualified Lexer
+import qualified Lexer as L
 
 }
 
 %name parse
-%tokentype { Lexer.Token }
+%tokentype { L.Token L.Pos }
 %error { parseError }
 
 %token
-    lbrace    { Lexer.LBrace       }
-    rbrace    { Lexer.RBrace       }
-    lbracket  { Lexer.LBracket     }
-    rbracket  { Lexer.RBracket     }
-    colon     { Lexer.Colon        }
-    comma     { Lexer.Comma        }
-    strlit    { Lexer.StringLit $$ }
-    numlit    { Lexer.NumLit $$    }
+    lbrace    { L.LBrace       }
+    rbrace    { L.RBrace       }
+    lbracket  { L.LBracket     }
+    rbracket  { L.RBracket     }
+    colon     { L.Colon        }
+    comma     { L.Comma        }
+    strlit    { L.StringLit $$ }
+    numlit    { L.NumLit $$    }
 
 %%
 
@@ -41,21 +41,14 @@ Object : lbrace rbrace                       { JsonObject [] }
 
 {
 
-parse :: [Lexer.Token] -> JsonExpr
+parse :: [L.Token L.Pos] -> JsonExpr L.Pos
 
 parseError = error "Parse error"
 
-data JsonExpr = JsonNum Integer
-              | JsonStr String
-              | JsonList [JsonExpr]
-              | JsonObject [(String, JsonExpr)]
+data JsonExpr a = JsonNum Integer a
+                | JsonStr String a
+                | JsonList [JsonExpr] a
+                | JsonObject [(String, JsonExpr)] a
   deriving Show
-
--- TODO: A nicer Show instance for JsonExpr?
--- instance Show JsonExpr where
---   show (JsonNum n) = show n
---   show (JsonStr s) = s
---   show (JsonList es)  = "[" ++ unwords (((++ ",") . show) <$> es) "]"
---   show (JsonObject (kv:kvs)) = undefined
 
 }

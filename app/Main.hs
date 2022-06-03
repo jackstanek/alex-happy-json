@@ -1,7 +1,12 @@
 module Main where
 
-import Lexer
-import Parser
+import Control.Monad (forever)
+
+import qualified Lexer as L
+-- import Parser
+
+lexLine :: IO (Either String [L.Token L.Pos])
+lexLine = L.scanTokens <$> getLine
 
 main :: IO ()
-main = interact $ show <$> (parse . scanTokens)
+main = forever (lexLine >>= print)
