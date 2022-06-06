@@ -2,22 +2,26 @@
 module Lexer (Token(..), Pos, scanTokens) where
 }
 
-%wrapper "monad"
+%wrapper "monadUserState"
 %token "Token Pos"
 
 $digit = 0-9
-@string = \" ($printable # \")* \"
+$hex = [0-9a-fA-F]
+@esc_seq = \\ ( [bfnrt\"\/] | u $hex{4} )
+@str_contents = ( [^\"] | @esc_seq )
 
 tokens :-
-  $white+ { skip            }
-  "{"     { symbol LBrace   }
-  "}"     { symbol RBrace   }
-  "["     { symbol LBracket }
-  "]"     { symbol RBracket }
-  ":"     { symbol Colon    }
-  ","     { symbol Comma    }
-  @string { stringlit       }
-  $digit+ { digit           }
+  <0>       $white+         { skip                 }
+  <0>       "{"             { symbol LBrace        }
+  <0>       "}"             { symbol RBrace        }
+  <0>       "["             { symbol LBracket      }
+  <0>       "]"             { symbol RBracket      }
+  <0>       ":"             { symbol Colon         }
+  <0>       ","             { symbol Comma         }
+  <0>       $digit+         { digit                }
+  <0>       \"              { begin string         }
+  <string>  [^\"]           { stringchar           }
+  <string>  \"              { emitStr `andBegin` 0 }
 
 {
 
@@ -37,14 +41,32 @@ type Pos = (Int, Int)
 unpackAlexPosn :: AlexPosn -> Pos
 unpackAlexPosn (AlexPn off row col) = (row, col)
 
+symbol :: (Pos -> Token Pos) -> AlexAction (Token Pos)
 symbol tok (pos, _, _, _) _ = return $ tok (unpackAlexPosn pos)
-stringlit (pos, _, _, input) len = return $ StringLit (take (len - 2) (tail input)) (unpackAlexPosn pos)
+
+digit :: AlexAction (Token Pos)
 digit (pos, _, _, input) len = return $ NumLit (read $ take len input) (unpackAlexPosn pos)
+
+stringchar (pos, _, _, input) _ = do
+  curr <- alexGetUserState
+  let new = ((head input):curr)
+  alexSetUserState curr
+
+emitStr :: AlexAction (Token Pos)
+emitStr (pos, _, _, input) _ = do
+  strAcc <- alexGetUserState
+  alexSetUserState ""
+  return $ StringLit strAcc (unpackAlexPosn pos)
 
 alexEOF = return EOF :: Alex (Token Pos)
 
+type AlexUserState = String
+alexInitUserState = ""
+
+loop :: Alex [Token Pos]
 loop = do
   tok' <- alexMonadScan
+  startcode <- alexGetStartCode
   case tok' of
     EOF -> return []
     _ -> (tok' :) <$> loop
