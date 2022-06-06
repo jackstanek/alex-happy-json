@@ -1,13 +1,16 @@
 {
 module Lexer (Token(..), Pos, scanTokens) where
+
+import Data.Char
+import Numeric (readHex)
 }
 
 %wrapper "monadUserState"
-%token "Token Pos"
+%token "Maybe (Token Pos)"
 
 $digit = 0-9
 $hex = [0-9a-fA-F]
-@esc_seq = \\ ( [bfnrt\"\/] | u $hex{4} )
+@esc_seq = \\ ( [bfnrt\"\/\\] | u $hex{4} )
 @str_contents = ( [^\"] | @esc_seq )
 
 tokens :-
@@ -20,7 +23,8 @@ tokens :-
   <0>       ","             { symbol Comma         }
   <0>       $digit+         { digit                }
   <0>       \"              { begin string         }
-  <string>  [^\"]           { stringchar           }
+  <string>  @esc_seq        { escSeq               }
+  <string>  [^\"]           { strChar              }
   <string>  \"              { emitStr `andBegin` 0 }
 
 {
@@ -41,35 +45,48 @@ type Pos = (Int, Int)
 unpackAlexPosn :: AlexPosn -> Pos
 unpackAlexPosn (AlexPn off row col) = (row, col)
 
-symbol :: (Pos -> Token Pos) -> AlexAction (Token Pos)
-symbol tok (pos, _, _, _) _ = return $ tok (unpackAlexPosn pos)
+symbol tok (pos, _, _, _) _ = return $ Just $ tok (unpackAlexPosn pos)
 
-digit :: AlexAction (Token Pos)
-digit (pos, _, _, input) len = return $ NumLit (read $ take len input) (unpackAlexPosn pos)
+digit (pos, _, _, input) len = return $ Just $ NumLit (read $ take len input) (unpackAlexPosn pos)
 
-stringchar (pos, _, _, input) _ = do
-  curr <- alexGetUserState
-  let new = ((head input):curr)
-  alexSetUserState curr
+appendChar c = alexGetUserState >>= alexSetUserState . (c:)
 
-emitStr :: AlexAction (Token Pos)
+strChar (pos, _, _, input) _ = do
+  appendChar $ head input
+  return Nothing
+
+escSeq (pos, _, _, input) len =
+  let inputStr = take len input in do
+    appendChar $ case tail inputStr of
+      "\"" -> '"'
+      "/"  -> '/'
+      "\\" -> '\\'
+      "b"  -> '\b'
+      "f"  -> '\f'
+      "n"  -> '\n'
+      "r"  -> '\r'
+      "t"  -> '\t'
+      ('u':codepoint) -> chr . fst . head . readHex $ codepoint
+    return Nothing
+
 emitStr (pos, _, _, input) _ = do
   strAcc <- alexGetUserState
   alexSetUserState ""
-  return $ StringLit strAcc (unpackAlexPosn pos)
+  return $ Just $ StringLit (reverse strAcc) (unpackAlexPosn pos)
 
-alexEOF = return EOF :: Alex (Token Pos)
+alexEOF = return (Just EOF) :: Alex (Maybe (Token Pos))
 
 type AlexUserState = String
 alexInitUserState = ""
 
-loop :: Alex [Token Pos]
+-- loop :: Alex [Token Pos]
 loop = do
   tok' <- alexMonadScan
   startcode <- alexGetStartCode
   case tok' of
-    EOF -> return []
-    _ -> (tok' :) <$> loop
+    Nothing -> loop
+    Just EOF -> return []
+    Just t -> (t :) <$> loop
 
 scanTokens :: String -> Either String [Token Pos]
 scanTokens input = runAlex input loop
