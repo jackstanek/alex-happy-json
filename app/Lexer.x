@@ -6,12 +6,10 @@ import Numeric (readHex)
 }
 
 %wrapper "monadUserState"
-%token "Maybe (Token Pos)"
+%token "Token Pos"
 
 $digit = 0-9
 $hex = [0-9a-fA-F]
-@esc_seq = \\ ( [bfnrt\"\/\\] | u $hex{4} )
-@str_contents = ( [^\"] | @esc_seq )
 
 tokens :-
   <0>       $white+         { skip                 }
@@ -23,7 +21,15 @@ tokens :-
   <0>       ","             { symbol Comma         }
   <0>       $digit+         { digit                }
   <0>       \"              { begin string         }
-  <string>  @esc_seq        { escSeq               }
+  <string>  \\b             { appendChar '\b'      }
+  <string>  \\f             { appendChar '\f'      }
+  <string>  \\n             { appendChar '\n'      }
+  <string>  \\r             { appendChar '\r'      }
+  <string>  \\t             { appendChar '\t'      }
+  <string>  \\\\            { appendChar '\\'      }
+  <string>  \\ \/           { appendChar '/'       }
+  <string>  \\ \"           { appendChar '"'       }
+  <string>  \\u $hex{4}     { unicodeChar          }
   <string>  [^\"]           { strChar              }
   <string>  \"              { emitStr `andBegin` 0 }
 
@@ -45,36 +51,26 @@ type Pos = (Int, Int)
 unpackAlexPosn :: AlexPosn -> Pos
 unpackAlexPosn (AlexPn off row col) = (row, col)
 
-symbol tok (pos, _, _, _) _ = return $ Just $ tok (unpackAlexPosn pos)
+symbol tok (pos, _, _, _) _ = return $ tok (unpackAlexPosn pos)
 
-digit (pos, _, _, input) len = return $ Just $ NumLit (read $ take len input) (unpackAlexPosn pos)
+digit (pos, _, _, input) len = return $ NumLit (read $ take len input) (unpackAlexPosn pos)
 
-appendChar c = alexGetUserState >>= alexSetUserState . (c:)
 
-strChar (pos, _, _, input) _ = do
-  appendChar $ head input
-  return Nothing
+addChar c = alexGetUserState >>= alexSetUserState . (c:) >> alexMonadScan
 
-escSeq (pos, _, _, input) len =
-  let inputStr = take len input in do
-    appendChar $ case tail inputStr of
-      "\"" -> '"'
-      "/"  -> '/'
-      "\\" -> '\\'
-      "b"  -> '\b'
-      "f"  -> '\f'
-      "n"  -> '\n'
-      "r"  -> '\r'
-      "t"  -> '\t'
-      ('u':codepoint) -> chr . fst . head . readHex $ codepoint
-    return Nothing
+appendChar c _ _ = addChar c
+strChar (_, _, _, input) _ = addChar $ head input
+
+unicodeChar (_, _, _, input) _ = case readHex $ drop 2 input of
+  [(value, _)] -> addChar $ chr value
+  _ -> alexError "invalid escape sequence"
 
 emitStr (pos, _, _, input) _ = do
   strAcc <- alexGetUserState
   alexSetUserState ""
-  return $ Just $ StringLit (reverse strAcc) (unpackAlexPosn pos)
+  return $ StringLit (reverse strAcc) (unpackAlexPosn pos)
 
-alexEOF = return (Just EOF) :: Alex (Maybe (Token Pos))
+alexEOF = return EOF
 
 type AlexUserState = String
 alexInitUserState = ""
@@ -82,13 +78,11 @@ alexInitUserState = ""
 -- loop :: Alex [Token Pos]
 loop = do
   tok' <- alexMonadScan
-  startcode <- alexGetStartCode
   case tok' of
-    Nothing -> loop
-    Just EOF -> return []
-    Just t -> (t :) <$> loop
+    EOF -> return []
+    t -> (t :) <$> loop
 
 scanTokens :: String -> Either String [Token Pos]
-scanTokens input = runAlex input loop
+scanTokens = flip runAlex loop
 
 }
