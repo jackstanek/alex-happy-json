@@ -1,12 +1,18 @@
 module Main where
 
-import Control.Monad (forever)
+import Control.Monad
 
 import qualified Lexer as L
--- import Parser
+import qualified Parser as P
 
-lexLine :: IO (Either String [L.Token L.Pos])
-lexLine = L.scanTokens <$> getLine
+lexLine :: String -> Either String [L.Token L.Pos]
+lexLine = L.scanTokens
+
+parseLine :: [L.Token L.Pos] -> Either String (P.JsonExpr L.Pos)
+parseLine = Right . P.parse
+
+parse :: String -> Either String (P.JsonExpr L.Pos)
+parse = lexLine >=> parseLine
 
 main :: IO ()
-main = forever (lexLine >>= print)
+main = forever (getLine >>= print . parse)

@@ -41,8 +41,8 @@ data Token a = LBrace a
              | RBracket a
              | Colon a
              | Comma a
-             | StringLit String a
-             | NumLit Integer a
+             | StringLit a String
+             | NumLit a Integer
              | EOF
   deriving Show
 
@@ -53,7 +53,7 @@ unpackAlexPosn (AlexPn off row col) = (row, col)
 
 symbol tok (pos, _, _, _) _ = return $ tok (unpackAlexPosn pos)
 
-digit (pos, _, _, input) len = return $ NumLit (read $ take len input) (unpackAlexPosn pos)
+digit (pos, _, _, input) len = return $ NumLit (unpackAlexPosn pos) (read $ take len input)
 
 
 addChar c = alexGetUserState >>= alexSetUserState . (c:) >> alexMonadScan
@@ -68,7 +68,7 @@ unicodeChar (_, _, _, input) _ = case readHex $ drop 2 input of
 emitStr (pos, _, _, input) _ = do
   strAcc <- alexGetUserState
   alexSetUserState ""
-  return $ StringLit (reverse strAcc) (unpackAlexPosn pos)
+  return $ StringLit (unpackAlexPosn pos) (reverse strAcc)
 
 alexEOF = return EOF
 
