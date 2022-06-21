@@ -1,5 +1,5 @@
 {
-module Lexer (Token(..), Pos, scanTokens) where
+module Lexer (Alex, Token(..), Pos, scanTokens) where
 
 import Data.Char
 import Numeric (readHex)

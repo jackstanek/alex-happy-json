@@ -2,14 +2,17 @@
 
 module Parser (parse, JsonExpr) where
 
-import qualified Lexer as L
+import Control.Monad.Except
 import Data.List (intersperse)
+
+import qualified Lexer as L
 
 }
 
 %name parse
 %tokentype { L.Token L.Pos }
 %error { parseError }
+%monad { Either String } { (>>=) } { return }
 
 %token
     lbrace    { L.LBrace $$          }
@@ -42,9 +45,7 @@ Object : lbrace rbrace                       { JsonObject $1 [] }
 
 {
 
-parse :: [L.Token L.Pos] -> JsonExpr L.Pos
-
-parseError = error "Parse error"
+parseError tokens = Left "parse error"
 
 data JsonExpr a = JsonNum a Integer
                 | JsonStr a String
