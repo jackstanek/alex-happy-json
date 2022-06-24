@@ -20,7 +20,8 @@ maintainer:         stanekjack@gmail.com
 -- copyright:
 -- category:
 extra-source-files: CHANGELOG.md,
-                    app/Lexer.x
+                    app/Lexer.x,
+                    app/Parser.y
 
 executable json-parser
     main-is:          Main.hs
@@ -34,6 +35,7 @@ executable json-parser
     build-depends:       base ^>=4.14.3.0,
                          array ^>=0.5.4.0,
                          mtl ^>=2.2.2,
+                         transformers ^>=0.5.6.2,
     build-tool-depends:  alex:alex, happy:happy
     hs-source-dirs:      app
     default-language:    Haskell2010

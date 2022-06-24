@@ -1,8 +1,10 @@
 {
 
-module Parser (parse, JsonExpr) where
+module Parser (runParser, JsonExpr) where
 
-import Control.Monad.Except
+import Control.Monad (join)
+import Control.Monad.Trans.Except
+import Control.Monad.Trans.Class (lift)
 import Data.List (intersperse)
 
 import qualified Lexer as L
@@ -12,7 +14,8 @@ import qualified Lexer as L
 %name parse
 %tokentype { L.Token L.Pos }
 %error { parseError }
-%monad { Either String } { (>>=) } { return }
+%monad { Parse } { (>>=) } { return }
+%lexer { lift L.alexMonadScan >>= } { L.EOF }
 
 %token
     lbrace    { L.LBrace $$          }
@@ -45,7 +48,8 @@ Object : lbrace rbrace                       { JsonObject $1 [] }
 
 {
 
-parseError tokens = Left "parse error"
+type Parse = ExceptT String L.Alex
+parseError _ = throwE $ "parse error"
 
 data JsonExpr a = JsonNum a Integer
                 | JsonStr a String
@@ -63,4 +67,11 @@ data JsonExpr a = JsonNum a Integer
 mkNum (L.NumLit p v) = JsonNum p v
 mkStr (L.StringLit p v) = JsonStr p v
 extractStr (L.StringLit _ s) = s
+
+liftErr :: Either String a -> Parse a
+liftErr (Left e) = throwE e
+liftErr (Right a) = return a
+
+runParser :: String -> Either String (JsonExpr L.Pos)
+runParser = join <$> flip L.runAlex (runExceptT parse)
 }
