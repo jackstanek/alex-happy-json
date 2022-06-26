@@ -12,7 +12,7 @@ import qualified Lexer as L
 }
 
 %name parse
-%tokentype { L.Token L.Pos }
+%tokentype { L.Token L.AlexPosn }
 %error { parseError }
 %monad { Parse } { (>>=) } { return }
 %lexer { lift L.alexMonadScan >>= } { L.EOF }
@@ -40,7 +40,7 @@ List   : lbracket rbracket                   { JsonList $1 [] }
 ListContents : Value                         { [$1]    }
              | ListContents comma Value      { $3 : $1 }
 
-KeyValue : strlit colon Value                { (extractStr $1, $3) }
+KeyValue : String colon Value                { ($1, $3) }
 KeyValuePairs : KeyValue                     { [$1] }
               | KeyValuePairs comma KeyValue { $3 : $1 }
 Object : lbrace rbrace                       { JsonObject $1 [] }
@@ -49,12 +49,12 @@ Object : lbrace rbrace                       { JsonObject $1 [] }
 {
 
 type Parse = ExceptT String L.Alex
-parseError _ = throwE $ "parse error"
+parseError token = throwE $ "parse error at " ++ show token
 
 data JsonExpr a = JsonNum a Integer
                 | JsonStr a String
                 | JsonList a [JsonExpr a]
-                | JsonObject a [(String, JsonExpr a)]
+                | JsonObject a [(JsonExpr a, JsonExpr a)]
   deriving Show
 
 -- instance Show (JsonExpr a) where
@@ -66,12 +66,7 @@ data JsonExpr a = JsonNum a Integer
 
 mkNum (L.NumLit p v) = JsonNum p v
 mkStr (L.StringLit p v) = JsonStr p v
-extractStr (L.StringLit _ s) = s
 
-liftErr :: Either String a -> Parse a
-liftErr (Left e) = throwE e
-liftErr (Right a) = return a
-
-runParser :: String -> Either String (JsonExpr L.Pos)
+runParser :: String -> Either String (JsonExpr L.AlexPosn)
 runParser = join <$> flip L.runAlex (runExceptT parse)
 }
