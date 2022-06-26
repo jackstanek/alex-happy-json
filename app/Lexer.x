@@ -12,6 +12,8 @@ import Numeric (readHex)
 $digit = 0-9
 $hex = [0-9a-fA-F]
 
+@number = \-?([1-9]$digit*|0)(\.$digit+)?([eE][\+\-]?$digit+)?
+
 tokens :-
   <0>       $white+         { skip                 }
   <0>       "{"             { symbol LBrace        }
@@ -20,7 +22,7 @@ tokens :-
   <0>       "]"             { symbol RBracket      }
   <0>       ":"             { symbol Colon         }
   <0>       ","             { symbol Comma         }
-  <0>       $digit+         { digit                }
+  <0>       @number         { digit                }
   <0>       \"              { begin string         }
   <string>  \\b             { appendChar '\b'      }
   <string>  \\f             { appendChar '\f'      }
@@ -43,7 +45,7 @@ data Token a = LBrace    { tokLoc :: a }
              | Colon     { tokLoc :: a }
              | Comma     { tokLoc :: a }
              | StringLit { tokLoc :: a, tokStr :: String }
-             | NumLit    { tokLoc :: a, tokNum :: Integer }
+             | NumLit    { tokLoc :: a, tokNum :: Float }
              | EOF
   deriving Show
 

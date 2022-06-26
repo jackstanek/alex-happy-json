@@ -51,7 +51,7 @@ Object : lbrace rbrace                       { JsonObject $1 [] }
 type Parse = ExceptT String L.Alex
 parseError token = throwE $ "parse error at " ++ show token
 
-data JsonExpr a = JsonNum a Integer
+data JsonExpr a = JsonNum a Float
                 | JsonStr a String
                 | JsonList a [JsonExpr a]
                 | JsonObject a [(JsonExpr a, JsonExpr a)]
