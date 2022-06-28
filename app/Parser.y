@@ -15,7 +15,7 @@ import qualified Lexer as L
 %tokentype { L.Token L.AlexPosn }
 %error { parseError }
 %monad { Parse } { (>>=) } { return }
-%lexer { lift L.alexMonadScan >>= } { L.EOF }
+%lexer { lift L.alexMonadScan >>= } { L.EOF _ }
 
 %token
     lbrace    { L.LBrace $$          }
@@ -49,20 +49,21 @@ Object : lbrace rbrace                       { JsonObject $1 [] }
 {
 
 type Parse = ExceptT String L.Alex
-parseError token = throwE $ "parse error at " ++ show token
+
+parseError :: L.Token L.AlexPosn -> Parse a
+parseError token = throwE ((L.showPosn . L.tokLoc $ token) ++ ": parse error on token " ++ show token)
 
 data JsonExpr a = JsonNum a Float
                 | JsonStr a String
                 | JsonList a [JsonExpr a]
                 | JsonObject a [(JsonExpr a, JsonExpr a)]
-  deriving Show
 
--- instance Show (JsonExpr a) where
---   show (JsonNum _ i) = show i
---   show (JsonStr _ s) = show s
---   show (JsonList _ l) = "[" ++ (concat $ intersperse ", " $ show <$> l) ++ "]"
---   show (JsonObject _ p) = "{" ++ (concat $ intersperse ", " $ colonPair <$> p) ++ "}"
---     where colonPair (s, e) = show s ++ ": " ++ show e
+instance Show (JsonExpr a) where
+  show (JsonNum _ i) = show i
+  show (JsonStr _ s) = show s
+  show (JsonList _ l) = "[" ++ (concat $ intersperse ", " $ show <$> l) ++ "]"
+  show (JsonObject _ p) = "{" ++ (concat $ intersperse ", " $ colonPair <$> p) ++ "}"
+    where colonPair (s, e) = show s ++ ": " ++ show e
 
 mkNum (L.NumLit p v) = JsonNum p v
 mkStr (L.StringLit p v) = JsonStr p v

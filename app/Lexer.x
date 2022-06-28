@@ -1,6 +1,14 @@
 {
-module Lexer (Alex, alexMonadScan, runAlex, Token(..), AlexPosn, scanTokens) where
+module Lexer (
+    Alex,
+    alexMonadScan,
+    runAlex,
+    Token(..),
+    AlexPosn,
+    scanTokens,
+    showPosn) where
 
+import Control.Arrow ((&&&))
 import Data.Char
 import Data.Functor
 import Numeric (readHex)
@@ -46,8 +54,22 @@ data Token a = LBrace    { tokLoc :: a }
              | Comma     { tokLoc :: a }
              | StringLit { tokLoc :: a, tokStr :: String }
              | NumLit    { tokLoc :: a, tokNum :: Float }
-             | EOF
-  deriving Show
+             | EOF       { tokLoc :: a }
+
+surround = ("\"" ++) . (++ "\"")
+
+instance Show (Token a) where
+  show (LBrace _) = surround "{"
+  show (RBrace _) = surround "}"
+  show (LBracket _) = surround "["
+  show (RBracket _) = surround "]"
+  show (Colon _) = surround ":"
+  show (Comma _) = surround ","
+  show (StringLit _ s) = surround s
+  show (NumLit _ n) = surround . show $ n
+  show (EOF _) = "EOF"
+
+showPosn (AlexPn _ l c) = show l ++ ":" ++ show c
 
 mkL :: (AlexPosn -> String -> Token AlexPosn) -> AlexInput -> Int -> Alex (Token AlexPosn)
 mkL tokfn (pos, _, _, input) len = return (tokfn pos $ take len input)
@@ -73,7 +95,12 @@ emitStr (pos, _, _, _) _ = do
   alexSetUserState ""
   return $ StringLit pos strAcc
 
-alexEOF = return EOF
+get_pos :: Alex AlexPosn
+get_pos = Alex (Right . (id &&& alex_pos))
+
+alexEOF = do
+  pos <- get_pos
+  return $ EOF pos
 
 type AlexUserState = String
 alexInitUserState = ""
@@ -82,7 +109,7 @@ alexInitUserState = ""
 loop = do
   tok' <- alexMonadScan
   case tok' of
-    EOF -> return []
+    EOF _ -> return []
     t -> (t :) <$> loop
 
 scanTokens :: String -> Either String [Token AlexPosn]
